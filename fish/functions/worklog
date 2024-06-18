@@ -1,0 +1,21 @@
+function wl
+    # Define the worklog directory and template file
+    set WORKLOG_DIR ~/worklog
+    set TEMPLATE_FILE "$WORKLOG_DIR/template"
+
+    # Get today's date in YYYY-MM-DD format
+    set TODAY (date +'%Y-%m-%d')
+
+    # Define the target file path
+    set TARGET_FILE "$WORKLOG_DIR/$TODAY.md"
+
+    # Check if the target file exists
+    if not test -e "$TARGET_FILE"
+        # If it doesn't exist, create it from the template
+        cp "$TEMPLATE_FILE" "$TARGET_FILE"
+    end
+
+    # Open the target file in Neovim
+    nvim "$TARGET_FILE"
+end
+

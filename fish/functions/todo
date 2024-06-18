@@ -1,0 +1,17 @@
+function todo
+    set documents_dir "$HOME/Documents"
+    set folder_name "Todo"
+    set todo_folder "$documents_dir/$folder_name"
+
+    # Create the "Todo" folder if it doesn't exist
+    if not test -d "$todo_folder"
+        mkdir -p "$todo_folder"
+    end
+
+    # Generate the file name based on the current date
+    set file_name (date "+%Y-%m-%d").txt
+
+    # Open Vim with the current date file
+    vim "$file_name"
+end
+
