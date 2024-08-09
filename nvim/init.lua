@@ -20,6 +20,12 @@
 =====================================================================
 =====================================================================
 
+--give me some comment
+---- This script is a configuration for the Neovim text editor using the Kickstart framework.
+-- It provides a customized setup for an enhanced editing experience.
+-- Follow the instructions to customize your Neovim setup according to your preferences.
+
+
 What is Kickstart?
 
   Kickstart.nvim is *not* a distribution.
@@ -185,10 +191,10 @@ vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" }
 --  Use CTRL+<hjkl> to switch between windows
 --
 --  See `:help wincmd` for a list of all window commands
-vim.keymap.set("n", "<C-h>", "<cmd> TmuxNavigateLeft<CR>", { desc = "Move focus to the left window" })
-vim.keymap.set("n", "<C-l>", "<cmd> TmuxNavigateRight<CR>", { desc = "Move focus to the right window" })
-vim.keymap.set("n", "<C-j>", "<cmd> TmuxNavigateDown<CR>", { desc = "Move focus to the lower window" })
-vim.keymap.set("n", "<C-k>", "<cmd> TmuxNavigateUp<CR>", { desc = "Move focus to the upper window" })
+-- vim.keymap.set("n", "<C-h>", "<cmd> TmuxNavigateLeft<CR>", { desc = "Move focus to the left window" })
+-- vim.keymap.set("n", "<C-l>", "<cmd> TmuxNavigateRight<CR>", { desc = "Move focus to the right window" })
+-- vim.keymap.set("n", "<C-j>", "<cmd> TmuxNavigateDown<CR>", { desc = "Move focus to the lower window" })
+-- vim.keymap.set("n", "<C-k>", "<cmd> TmuxNavigateUp<CR>", { desc = "Move focus to the upper window" })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
@@ -225,12 +231,82 @@ vim.opt.rtp:prepend(lazypath)
 --
 -- NOTE: Here is where you install your plugins.
 require("lazy").setup({
-  {
-    'christoomey/vim-tmux-navigator',
-    lazy = false
 
-  },
+	{
+		"vimwiki/vimwiki",
+		config = function()
+			vim.g.vimwiki_list = {
+				{
+					path = "~/marble",
+					syntax = "markdown",
+					ext = ".md",
+				},
+			}
+		end,
+	},
+	{
+		"nilszeilon/dingllm.nvim",
+		dependencies = { "nvim-lua/plenary.nvim" },
+		config = function()
+			local dingllm = require("dingllm")
+			local system_prompt = "You should replace the code that you are sent, only following the comments. Do not talk at all. Only output valid code. Do not provide any backticks that surround the code. Never ever output backticks like this ```. Any comment that is asking you for something should be removed after you satisfy them. Other comments should left alone. Do not output backticks. Note that the file extension of this file is $file_ext."
+			local helpful_prompt =
+				"You are a helpful assistant. What I have sent are my notes so far. You are very curt, yet helpful. Note that the file extension of this file is $file_ext."
 
+			local function openai_replace()
+				dingllm.invoke_llm_and_stream_into_editor({
+					url = "https://api.openai.com/v1/chat/completions",
+					model = "gpt-4o",
+					api_key_name = "OPENAI_API_KEY",
+					system_prompt = dingllm.create_prompt(system_prompt),
+					replace = true,
+				}, dingllm.make_openai_spec_curl_args, dingllm.handle_openai_spec_data)
+			end
+
+			local function openai_help()
+				dingllm.invoke_llm_and_stream_into_editor({
+					url = "https://api.openai.com/v1/chat/completions",
+					model = "gpt-4o",
+					api_key_name = "OPENAI_API_KEY",
+					system_prompt = dingllm.create_prompt(helpful_prompt),
+					replace = false,
+				}, dingllm.make_openai_spec_curl_args, dingllm.handle_openai_spec_data)
+			end
+
+			local function anthropic_help()
+				dingllm.invoke_llm_and_stream_into_editor({
+					url = "https://api.anthropic.com/v1/messages",
+					model = "claude-3-5-sonnet-20240620",
+					api_key_name = "ANTHROPIC_API_KEY",
+					system_prompt = dingllm.create_prompt(helpful_prompt),
+					replace = false,
+				}, dingllm.make_anthropic_spec_curl_args, dingllm.handle_anthropic_spec_data)
+			end
+
+			local function anthropic_replace()
+				dingllm.invoke_llm_and_stream_into_editor({
+					url = "https://api.anthropic.com/v1/messages",
+					model = "claude-3-5-sonnet-20240620",
+					api_key_name = "ANTHROPIC_API_KEY",
+					system_prompt = dingllm.create_prompt(system_prompt),
+					replace = true,
+				}, dingllm.make_anthropic_spec_curl_args, dingllm.handle_anthropic_spec_data)
+			end
+
+			vim.keymap.set({ "n", "v" }, "<leader>L", openai_help, { desc = "llm openai_help" })
+			vim.keymap.set({ "n", "v" }, "<leader>l", openai_replace, { desc = "llm openai" })
+			vim.keymap.set({ "n", "v" }, "<leader>I", anthropic_help, { desc = "llm anthropic_help" })
+			vim.keymap.set({ "n", "v" }, "<leader>i", anthropic_replace, { desc = "llm anthropic" })
+		end,
+	},
+	{
+		"christoomey/vim-tmux-navigator",
+		lazy = false,
+	},
+	{
+		"knubie/vim-kitty-navigator",
+		lazy = false,
+	},
 	{
 		"nvim-tree/nvim-tree.lua",
 		version = "*",
@@ -294,24 +370,6 @@ require("lazy").setup({
 	{ -- Useful plugin to show you pending keybinds.
 		"folke/which-key.nvim",
 		event = "VimEnter", -- Sets the loading event to 'VimEnter'
-		config = function() -- This is the function that runs, AFTER loading
-			require("which-key").setup()
-
-			-- Document existing key chains
-			require("which-key").register({
-				["<leader>c"] = { name = "[C]ode", _ = "which_key_ignore" },
-				["<leader>d"] = { name = "[D]ocument", _ = "which_key_ignore" },
-				["<leader>r"] = { name = "[R]ename", _ = "which_key_ignore" },
-				["<leader>s"] = { name = "[S]earch", _ = "which_key_ignore" },
-				["<leader>w"] = { name = "[W]orkspace", _ = "which_key_ignore" },
-				["<leader>t"] = { name = "[T]oggle", _ = "which_key_ignore" },
-				["<leader>h"] = { name = "Git [H]unk", _ = "which_key_ignore" },
-			})
-			-- visual mode
-			require("which-key").register({
-				["<leader>h"] = { "Git [H]unk" },
-			}, { mode = "v" })
-		end,
 	},
 
 	-- NOTE: Plugins can specify dependencies.
@@ -668,14 +726,14 @@ require("lazy").setup({
 				-- Disable "format_on_save lsp_fallback" for languages that don't
 				-- have a well standardized coding style. You can add additional
 				-- languages here or re-enable it for the disabled ones.
-				local disable_filetypes = { c = true, cpp = true }
+				local disable_filetypes = { c = true, cpp = true, lua = true }
 				return {
 					timeout_ms = 500,
 					lsp_fallback = not disable_filetypes[vim.bo[bufnr].filetype],
 				}
 			end,
 			formatters_by_ft = {
-				lua = { "stylua" },
+				-- lua = { "stylua" },
 				-- Conform can also run multiple formatters sequentially
 				-- python = { "isort", "black" },
 				--
