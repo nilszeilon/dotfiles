@@ -234,10 +234,11 @@ require("lazy").setup({
 
 	{
 		"vimwiki/vimwiki",
-		config = function()
+		init = function()
 			vim.g.vimwiki_list = {
 				{
-					path = "~/marble",
+          diary_rel_path = "diary/",
+					path = "~/bedrock",
 					syntax = "markdown",
 					ext = ".md",
 				},
