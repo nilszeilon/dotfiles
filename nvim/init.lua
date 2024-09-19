@@ -231,45 +231,250 @@ vim.opt.rtp:prepend(lazypath)
 --
 -- NOTE: Here is where you install your plugins.
 require("lazy").setup({
-
 	{
+		"yetone/avante.nvim",
+		event = "VeryLazy",
+		lazy = false,
+		version = false, -- set this if you want to always pull the latest change
+		opts = {
+			-- add any opts here
+		},
+		-- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
+		build = "make",
+		-- build = "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false" -- for windows
+		dependencies = {
+			"stevearc/dressing.nvim",
+			"nvim-lua/plenary.nvim",
+			"MunifTanjim/nui.nvim",
+			--- The below dependencies are optional,
+			"nvim-tree/nvim-web-devicons", -- or echasnovski/mini.icons
+			"zbirenbaum/copilot.lua", -- for providers='copilot'
+			{
+				-- support for image pasting
+				"HakonHarnes/img-clip.nvim",
+				event = "VeryLazy",
+				opts = {
+					-- recommended settings
+					default = {
+						embed_image_as_base64 = false,
+						prompt_for_file_name = false,
+						drag_and_drop = {
+							insert_mode = true,
+						},
+						-- required for Windows users
+						use_absolute_path = true,
+					},
+				},
+			},
+			{
+				-- Make sure to set this up properly if you have lazy=true
+				"MeanderingProgrammer/render-markdown.nvim",
+				opts = {
+					file_types = { "markdown", "Avante" },
+				},
+				ft = { "markdown", "Avante" },
+			},
+		},
+	},
+	{
+		"allaman/emoji.nvim",
+		version = "1.0.0", -- optionally pin to a tag
+		ft = "svelte", -- adjust to your needs
+		dependencies = {
+			-- optional for nvim-cmp integration
+			-- "hrsh7th/nvim-cmp",
+			-- optional for telescope integration
+			"nvim-telescope/telescope.nvim",
+		},
+		-- opts = {
+		--   -- default is false
+		--   enable_cmp_integration = true,
+		--   -- optional if your plugin installation directory
+		--   -- is not vim.fn.stdpath("data") .. "/lazy/
+		--   plugin_path = vim.fn.expand("$HOME/plugins/"),
+		-- },
+		config = function(_, opts)
+			require("emoji").setup(opts)
+			-- optional for telescope integration
+			local ts = require("telescope").load_extension("emoji")
+			vim.keymap.set("n", "<leader>se", ts.emoji, { desc = "[S]earch [E]moji" })
+		end,
+	},
+	{
+
 		"vimwiki/vimwiki",
 		init = function()
 			vim.g.vimwiki_list = {
 				{
-          diary_rel_path = "diary/",
+					diary_rel_path = "diary/",
 					path = "~/bedrock",
 					syntax = "markdown",
 					ext = ".md",
 				},
 			}
 		end,
+		config = function()
+			-- Function to commit and push changes
+			local function commit_and_push()
+				local file = vim.fn.expand("%:p")
+				local vimwiki_path = vim.fn.expand("~/bedrock/")
+				if string.sub(file, 1, #vimwiki_path) == vimwiki_path then
+					vim.fn.jobstart({
+						"bash",
+						"-c",
+						string.format(
+							'git -C %s add %s && git -C %s commit -m "Auto commit: %s" && git -C %s push',
+							vimwiki_path,
+							file,
+							vimwiki_path,
+							file,
+							vimwiki_path
+						),
+					}, {
+						on_exit = function(_, exit_code)
+							if exit_code == 0 then
+								vim.schedule(function()
+									print("Changes committed and pushed to remote repository")
+								end)
+							else
+								vim.schedule(function()
+									print("Error occurred while committing and pushing changes")
+								end)
+							end
+						end,
+					})
+				end
+			end
+
+			-- Function to pull latest changes
+			local function pull_changes()
+				local vimwiki_path = vim.fn.expand("~/bedrock/")
+				vim.fn.jobstart({
+					"git",
+					"-C",
+					vimwiki_path,
+					"pull",
+				}, {
+					on_exit = function(_, exit_code)
+						if exit_code == 0 then
+							vim.schedule(function()
+								print("Successfully pulled latest changes")
+							end)
+						else
+							vim.schedule(function()
+								print("Error occurred while pulling changes")
+							end)
+						end
+					end,
+				})
+			end
+
+			-- Set up autocommand to run on file write
+			vim.api.nvim_create_autocmd("BufWritePost", {
+				pattern = { "*/bedrock/*.md" },
+				callback = commit_and_push,
+			})
+
+			-- Set up autocommand to pull changes when entering a vimwiki file
+			vim.api.nvim_create_autocmd("BufEnter", {
+				pattern = { "*/bedrock/*.md" },
+				callback = pull_changes,
+			})
+
+			-- Shortcut for searching your Neovim configuration files
+			vim.keymap.set("n", "<leader>sw", function()
+				local telescope = require("telescope.builtin")
+				telescope.find_files({ cwd = "~/bedrock" })
+			end, { desc = "[S]earch vim[W]iki files" })
+		end,
 	},
 	{
-		"nilszeilon/dingllm.nvim",
+		"yacineMTB/dingllm.nvim",
 		dependencies = { "nvim-lua/plenary.nvim" },
 		config = function()
+			local system_prompt =
+				"You should replace the code that you are sent, only following the comments. Do not talk at all. Only output valid code. Do not provide any backticks that surround the code. Never ever output backticks like this ```. Any comment that is asking you for something should be removed after you satisfy them. Other comments should left alone. Do not output backticks"
+			local helpful_prompt = "You are a helpful assistant. What I have sent are my notes so far."
 			local dingllm = require("dingllm")
-			local system_prompt = "You should replace the code that you are sent, only following the comments. Do not talk at all. Only output valid code. Do not provide any backticks that surround the code. Never ever output backticks like this ```. Any comment that is asking you for something should be removed after you satisfy them. Other comments should left alone. Do not output backticks. Note that the file extension of this file is $file_ext."
-			local helpful_prompt =
-				"You are a helpful assistant. What I have sent are my notes so far. You are very curt, yet helpful. Note that the file extension of this file is $file_ext."
 
-			local function openai_replace()
+			local function handle_open_router_spec_data(data_stream)
+				local success, json = pcall(vim.json.decode, data_stream)
+				if success then
+					if json.choices and json.choices[1] and json.choices[1].text then
+						local content = json.choices[1].text
+						if content then
+							dingllm.write_string_at_cursor(content)
+						end
+					end
+				else
+					print("non json " .. data_stream)
+				end
+			end
+
+			local function custom_make_openai_spec_curl_args(opts, prompt)
+				local url = opts.url
+				local api_key = opts.api_key_name and os.getenv(opts.api_key_name)
+				local data = {
+					prompt = prompt,
+					model = opts.model,
+					temperature = 0.7,
+					stream = true,
+				}
+				local args = { "-N", "-X", "POST", "-H", "Content-Type: application/json", "-d", vim.json.encode(data) }
+				if api_key then
+					table.insert(args, "-H")
+					table.insert(args, "Authorization: Bearer " .. api_key)
+				end
+				table.insert(args, url)
+				return args
+			end
+
+			local function llama_405b_base()
 				dingllm.invoke_llm_and_stream_into_editor({
-					url = "https://api.openai.com/v1/chat/completions",
-					model = "gpt-4o",
-					api_key_name = "OPENAI_API_KEY",
-					system_prompt = dingllm.create_prompt(system_prompt),
+					url = "https://openrouter.ai/api/v1/chat/completions",
+					model = "meta-llama/llama-3.1-405b",
+					api_key_name = "OPEN_ROUTER_API_KEY",
+					max_tokens = "128",
+					replace = false,
+				}, custom_make_openai_spec_curl_args, handle_open_router_spec_data)
+			end
+
+			local function groq_replace()
+				dingllm.invoke_llm_and_stream_into_editor({
+					url = "https://api.groq.com/openai/v1/chat/completions",
+					model = "llama-3.1-70b-versatile",
+					api_key_name = "GROQ_API_KEY",
+					system_prompt = system_prompt,
 					replace = true,
 				}, dingllm.make_openai_spec_curl_args, dingllm.handle_openai_spec_data)
 			end
 
-			local function openai_help()
+			local function groq_help()
 				dingllm.invoke_llm_and_stream_into_editor({
-					url = "https://api.openai.com/v1/chat/completions",
-					model = "gpt-4o",
-					api_key_name = "OPENAI_API_KEY",
-					system_prompt = dingllm.create_prompt(helpful_prompt),
+					url = "https://api.groq.com/openai/v1/chat/completions",
+					model = "llama-3.1-70b-versatile",
+					api_key_name = "GROQ_API_KEY",
+					system_prompt = helpful_prompt,
+					replace = false,
+				}, dingllm.make_openai_spec_curl_args, dingllm.handle_openai_spec_data)
+			end
+
+			local function llama405b_replace()
+				dingllm.invoke_llm_and_stream_into_editor({
+					url = "https://api.lambdalabs.com/v1/chat/completions",
+					model = "hermes-3-llama-3.1-405b-fp8",
+					api_key_name = "LAMBDA_API_KEY",
+					system_prompt = system_prompt,
+					replace = true,
+				}, dingllm.make_openai_spec_curl_args, dingllm.handle_openai_spec_data)
+			end
+
+			local function llama405b_help()
+				dingllm.invoke_llm_and_stream_into_editor({
+					url = "https://api.lambdalabs.com/v1/chat/completions",
+					model = "hermes-3-llama-3.1-405b-fp8",
+					api_key_name = "LAMBDA_API_KEY",
+					system_prompt = helpful_prompt,
 					replace = false,
 				}, dingllm.make_openai_spec_curl_args, dingllm.handle_openai_spec_data)
 			end
@@ -279,7 +484,7 @@ require("lazy").setup({
 					url = "https://api.anthropic.com/v1/messages",
 					model = "claude-3-5-sonnet-20240620",
 					api_key_name = "ANTHROPIC_API_KEY",
-					system_prompt = dingllm.create_prompt(helpful_prompt),
+					system_prompt = helpful_prompt,
 					replace = false,
 				}, dingllm.make_anthropic_spec_curl_args, dingllm.handle_anthropic_spec_data)
 			end
@@ -289,20 +494,26 @@ require("lazy").setup({
 					url = "https://api.anthropic.com/v1/messages",
 					model = "claude-3-5-sonnet-20240620",
 					api_key_name = "ANTHROPIC_API_KEY",
-					system_prompt = dingllm.create_prompt(system_prompt),
+					system_prompt = system_prompt,
 					replace = true,
 				}, dingllm.make_anthropic_spec_curl_args, dingllm.handle_anthropic_spec_data)
 			end
 
-			vim.keymap.set({ "n", "v" }, "<leader>L", openai_help, { desc = "llm openai_help" })
-			vim.keymap.set({ "n", "v" }, "<leader>l", openai_replace, { desc = "llm openai" })
+			vim.keymap.set({ "n", "v" }, "<leader>k", groq_replace, { desc = "llm groq" })
+			vim.keymap.set({ "n", "v" }, "<leader>K", groq_help, { desc = "llm groq_help" })
+			vim.keymap.set({ "n", "v" }, "<leader>L", llama405b_help, { desc = "llm llama405b_help" })
+			vim.keymap.set({ "n", "v" }, "<leader>l", llama405b_replace, { desc = "llm llama405b_replace" })
 			vim.keymap.set({ "n", "v" }, "<leader>I", anthropic_help, { desc = "llm anthropic_help" })
 			vim.keymap.set({ "n", "v" }, "<leader>i", anthropic_replace, { desc = "llm anthropic" })
+			vim.keymap.set({ "n", "v" }, "<leader>o", llama_405b_base, { desc = "llama base" })
 		end,
 	},
 	{
-		"christoomey/vim-tmux-navigator",
-		lazy = false,
+		"MunsMan/kitty-navigator.nvim",
+		build = {
+			"cp navigate_kitty.py ~/.config/kitty",
+			"cp pass_keys.py ~/.config/kitty",
+		},
 	},
 	{
 		"knubie/vim-kitty-navigator",
@@ -321,7 +532,7 @@ require("lazy").setup({
 	},
 
 	-- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
-	"tpope/vim-sleuth", -- Detect tabstop and shiftwidth automatically
+	-- 	"tpope/vim-sleuth", -- Detect tabstop and shiftwidth automatically
 
 	-- NOTE: Plugins can also be added by using a table,
 	-- with the first argument being the link and the following
@@ -453,7 +664,7 @@ require("lazy").setup({
 			vim.keymap.set("n", "<leader>sk", builtin.keymaps, { desc = "[S]earch [K]eymaps" })
 			vim.keymap.set("n", "<leader>sf", builtin.find_files, { desc = "[S]earch [F]iles" })
 			vim.keymap.set("n", "<leader>ss", builtin.builtin, { desc = "[S]earch [S]elect Telescope" })
-			vim.keymap.set("n", "<leader>sw", builtin.grep_string, { desc = "[S]earch current [W]ord" })
+			vim.keymap.set("n", "<leader>scw", builtin.grep_string, { desc = "[S]earch [C]urrent [W]ord" })
 			vim.keymap.set("n", "<leader>sg", builtin.live_grep, { desc = "[S]earch by [G]rep" })
 			vim.keymap.set("n", "<leader>sd", builtin.diagnostics, { desc = "[S]earch [D]iagnostics" })
 			vim.keymap.set("n", "<leader>sr", builtin.resume, { desc = "[S]earch [R]esume" })
@@ -735,6 +946,19 @@ require("lazy").setup({
 			end,
 			formatters_by_ft = {
 				-- lua = { "stylua" },
+				javascript = { "prettier" },
+				typescript = { "prettier" },
+				javascriptreact = { "prettier" },
+				typescriptreact = { "prettier" },
+				svelte = { "prettierd" },
+				css = { "prettier" },
+				html = { "prettier" },
+				json = { "prettier" },
+				yaml = { "prettier" },
+				markdown = { "prettier" },
+				graphql = { "prettier" },
+				lua = { "stylua" },
+				python = { "isort", "black" },
 				-- Conform can also run multiple formatters sequentially
 				-- python = { "isort", "black" },
 				--
