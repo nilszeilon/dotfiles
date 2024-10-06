@@ -1,0 +1,5 @@
+
+alias day='kitty +kitten themes Github Light'
+alias night='kitty +kitten themes Dracula'
+
+
