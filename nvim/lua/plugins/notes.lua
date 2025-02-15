@@ -7,7 +7,7 @@ return {
     config = function()
       require("lumen").setup({
         -- Optional: override default config
-        journal_dir = vim.fn.expand("~/notes"),
+        journal_dir = vim.fn.expand("~/notes/diary"),
         db_name = "lumen.db",
         anthropic_api_key = os.getenv("ANTHROPIC_API_KEY"),
         model = "claude-3-5-sonnet-20241022",
